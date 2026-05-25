@@ -15,6 +15,11 @@ def init_db():
                 active INTEGER DEFAULT 1
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS groups (
+                chat_id INTEGER PRIMARY KEY
+            )
+        """)
         conn.commit()
 
 @contextmanager
@@ -43,3 +48,18 @@ def get_user(user_id):
     with get_connection() as conn:
         row = conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
         return dict(row) if row else None
+
+def save_group(chat_id):
+    with get_connection() as conn:
+        conn.execute("INSERT OR IGNORE INTO groups (chat_id) VALUES (?)", (chat_id,))
+        conn.commit()
+
+def get_all_groups():
+    with get_connection() as conn:
+        rows = conn.execute("SELECT chat_id FROM groups").fetchall()
+        return [row["chat_id"] for row in rows]
+
+def remove_group(chat_id):
+    with get_connection() as conn:
+        conn.execute("DELETE FROM groups WHERE chat_id = ?", (chat_id,))
+        conn.commit()
