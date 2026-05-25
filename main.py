@@ -113,6 +113,7 @@ def main():
 
     # Обработчики
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("next", next_command))  
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Планировщик утренней рассылки
