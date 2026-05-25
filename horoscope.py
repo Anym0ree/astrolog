@@ -98,3 +98,11 @@ def get_day_of_week_ru():
     now = datetime.now(tz)
     days = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
     return days[now.weekday()]
+def generate_quick_tip(name, sign_ru, gender):
+    pronoun = "ей" if gender == "женщина" else "ему"
+    prompt = (
+        f"Дай короткий, тёплый и полезный совет на ближайшее время для {name} ({gender}). "
+        f"Знак зодиака: {sign_ru}. Совет должен быть в одном-двух предложениях, вдохновляющий, "
+        f"с обращением на «ты» и родом {pronoun}. Без вступления, только сам совет."
+    )
+    return ask_gpt(prompt, temperature=0.8, max_tokens=80)
