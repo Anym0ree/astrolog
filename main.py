@@ -1,35 +1,33 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+import pytz
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from config import BOT_TOKEN, GROUP_CHAT_ID
+from config import BOT_TOKEN, GROUP_CHAT_ID, TIMEZONE
 from db import init_db, save_user, get_user
-from horoscope import calculate_sign, ZODIAC_SIGNS
+from horoscope import calculate_sign, ZODIAC_SIGNS, generate_quick_tip
 from scheduler import setup_scheduler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Состояния для ConversationHandler (но для простоты используем два шага без библиотеки)
-user_states = {}  # user_id -> {'state': 'waiting_gender', 'birth_date': ..., 'sign': ...}
+user_states = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Запускаем только в личке
     if update.effective_chat.type != "private":
         return
     user_id = update.effective_user.id
-    user_states.pop(user_id, None)  # сброс
+    user_states.pop(user_id, None)
     await update.message.reply_text(
         "Привет! Я астробот для вашего чата. Чтобы давать точные прогнозы, "
         "напиши свою дату рождения в формате ДД.ММ.ГГГГ (например, 12.07.1995)."
     )
+
 async def next_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показывает, через сколько будет утренний гороскоп, и даёт быстрый совет."""
     user = update.effective_user
     user_id = user.id
     chat_id = update.effective_chat.id
 
-    # Рассчитываем время до ближайшего 9:00 по Москве
     tz = pytz.timezone(TIMEZONE)
     now = datetime.now(tz)
     target_hour = 9
@@ -42,7 +40,6 @@ async def next_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     minutes = remainder // 60
     time_str = f"{hours} ч. {minutes} мин." if hours else f"{minutes} мин."
 
-    # Готовим совет
     user_data = get_user(user_id)
     if user_data:
         sign_ru = ZODIAC_SIGNS[user_data['sign']]
@@ -62,12 +59,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text.strip()
 
-    # Если это личка — обрабатываем регистрацию
     if update.effective_chat.type == "private":
         state = user_states.get(user_id)
 
         if state and state.get('state') == 'waiting_gender':
-            # Ожидаем пол
             if text.lower() in ('м', 'm', 'муж', 'парень'):
                 gender = 'm'
             elif text.lower() in ('ж', 'f', 'жен', 'девушка'):
@@ -86,7 +81,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Первый шаг — дата
         try:
             dt = datetime.strptime(text, "%d.%m.%Y")
             day, month = dt.day, dt.month
@@ -104,21 +98,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Неверный формат. Введи дату как ДД.ММ.ГГГГ (например, 12.07.1995).")
 
     else:
-        # В группах не отвечаем на сообщения, чтобы не шуметь
         pass
 
 def main():
     init_db()
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Обработчики
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("next", next_command))  
+    app.add_handler(CommandHandler("next", next_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Планировщик утренней рассылки
     scheduler = setup_scheduler(app.bot, GROUP_CHAT_ID)
     scheduler.start()
+    app.bot_data["scheduler"] = scheduler
 
     logger.info("Бот запущен...")
     app.run_polling()
