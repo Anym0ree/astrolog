@@ -22,7 +22,6 @@ ZODIAC_SIGNS = {
 }
 
 def calculate_sign(day, month):
-    # Возвращает английское название знака
     if (month == 3 and day >= 21) or (month == 4 and day <= 19):
         return "aries"
     elif (month == 4 and day >= 20) or (month == 5 and day <= 20):
@@ -77,6 +76,15 @@ def generate_personal_block(user, date_str):
 Ответ выдай без лишнего оформления, только текст блоков, начиная каждый с указанного заголовка."""
     return ask_gpt(prompt)
 
+def generate_quick_tip(name, sign_ru, gender):
+    pronoun = "ей" if gender == "женщина" else "ему"
+    prompt = (
+        f"Дай короткий, тёплый и полезный совет на ближайшее время для {name} ({gender}). "
+        f"Знак зодиака: {sign_ru}. Совет должен быть в одном-двух предложениях, вдохновляющий, "
+        f"с обращением на «ты» и родом {pronoun}. Без вступления, только сам совет."
+    )
+    return ask_gpt(prompt, temperature=0.8, max_tokens=80)
+
 def ask_gpt(prompt, temperature=0.9, max_tokens=500):
     try:
         response = openai.ChatCompletion.create(
@@ -98,11 +106,4 @@ def get_day_of_week_ru():
     now = datetime.now(tz)
     days = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
     return days[now.weekday()]
-def generate_quick_tip(name, sign_ru, gender):
-    pronoun = "ей" if gender == "женщина" else "ему"
-    prompt = (
-        f"Дай короткий, тёплый и полезный совет на ближайшее время для {name} ({gender}). "
-        f"Знак зодиака: {sign_ru}. Совет должен быть в одном-двух предложениях, вдохновляющий, "
-        f"с обращением на «ты» и родом {pronoun}. Без вступления, только сам совет."
-    )
-    return ask_gpt(prompt, temperature=0.8, max_tokens=80)
+    
