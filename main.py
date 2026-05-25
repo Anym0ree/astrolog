@@ -2,9 +2,9 @@ import logging
 from datetime import datetime, timedelta
 import pytz
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ChatMemberHandler
 from config import BOT_TOKEN, GROUP_CHAT_ID, TIMEZONE
-from db import init_db, save_user, get_user
+from db import init_db, save_user, get_user, save_group, remove_group
 from horoscope import calculate_sign, ZODIAC_SIGNS, generate_quick_tip
 from scheduler import setup_scheduler
 
@@ -12,6 +12,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 user_states = {}
+
+async def on_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_member = update.my_chat_member
+    if chat_member is None:
+        return
+    chat_id = chat_member.chat.id
+    new_status = chat_member.new_chat_member.status
+
+    if new_status in ("member", "administrator"):
+        save_group(chat_id)
+        logger.info(f"Бот добавлен в чат {chat_id}")
+    elif new_status in ("left", "kicked"):
+        remove_group(chat_id)
+        logger.info(f"Бот удалён из чата {chat_id}")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
@@ -98,7 +112,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Неверный формат. Введи дату как ДД.ММ.ГГГГ (например, 12.07.1995).")
 
     else:
-        pass
+        # Запоминаем группу при любом сообщении в чате
+        chat_id = update.effective_chat.id
+        save_group(chat_id)
 
 def main():
     init_db()
@@ -107,8 +123,9 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("next", next_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(ChatMemberHandler(on_chat_member_update, chat_member_types=ChatMemberHandler.MY_CHAT_MEMBER))
 
-    scheduler = setup_scheduler(app.bot, GROUP_CHAT_ID)
+    scheduler = setup_scheduler(app.bot)
     scheduler.start()
     app.bot_data["scheduler"] = scheduler
 
