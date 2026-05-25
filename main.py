@@ -23,6 +23,40 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Привет! Я астробот для вашего чата. Чтобы давать точные прогнозы, "
         "напиши свою дату рождения в формате ДД.ММ.ГГГГ (например, 12.07.1995)."
     )
+async def next_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает, через сколько будет утренний гороскоп, и даёт быстрый совет."""
+    user = update.effective_user
+    user_id = user.id
+    chat_id = update.effective_chat.id
+
+    # Рассчитываем время до ближайшего 9:00 по Москве
+    tz = pytz.timezone(TIMEZONE)
+    now = datetime.now(tz)
+    target_hour = 9
+    target_minute = 0
+    next_run = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+    if now >= next_run:
+        next_run += timedelta(days=1)
+    delta = next_run - now
+    hours, remainder = divmod(int(delta.total_seconds()), 3600)
+    minutes = remainder // 60
+    time_str = f"{hours} ч. {minutes} мин." if hours else f"{minutes} мин."
+
+    # Готовим совет
+    user_data = get_user(user_id)
+    if user_data:
+        sign_ru = ZODIAC_SIGNS[user_data['sign']]
+        gender = "женщина" if user_data['gender'] == 'f' else "мужчина"
+        tip = generate_quick_tip(user.first_name, sign_ru, gender)
+    else:
+        tip = ("✨ Совет дня: сделай паузу, выдохни и улыбнись. "
+               "А чтобы получать персональные гороскопы — напиши мне в личку /start и укажи дату рождения.")
+
+    text = (
+        f"🌅 Следующий гороскоп выйдет через {time_str} (в 09:00 по МСК).\n\n"
+        f"🪐 Пока лови небольшой совет:\n{tip}"
+    )
+    await context.bot.send_message(chat_id=chat_id, text=text)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
